@@ -1,13 +1,16 @@
 //dependencies
 var gulp = require('gulp');
 var util = require('gulp-util');
-var SystemBuilder = require('systemjs-builder');
 var watch = require('gulp-watch');
 var ts = require('gulp-typescript');
 var tsConfig = require('./tsconfig.json');
 var rimraf = require('gulp-rimraf');
 var sass = require('gulp-sass');
 var sourcemaps = require('gulp-sourcemaps');
+var fs = require('fs');
+var path = require('path');
+var del = require('del');
+var gutil = require('gulp-util');
 
 //Typescript Config;
 var tsProject = ts.createProject(tsConfig.compilerOptions);
@@ -48,11 +51,9 @@ gulp.task('sass', function () {
 gulp.task('clean', function(cb) {
     return gulp.src('./dist', { read: false }) // much faster
         .pipe(rimraf(cb));
-})
+});
 
-// add ts source
 tsConfig.files.push('src/**/*.ts');
-
 //compile app typescript files
 gulp.task('compile:app', function(){
     return gulp.src(tsConfig.files)
@@ -65,9 +66,29 @@ gulp.task('compile:app', function(){
 //live reload server
 gulp.task('build', ['copy:deps', 'copy:src', 'sass', 'compile:app']);
 
+
 //default task
 gulp.task('watch', ['build'], function(){
-    gulp.watch(['src/**/*.ts'], ['compile:app']);
-    gulp.watch(['src/**/*.js', 'src/**/*.html', 'src/**/*.css'], ['copy:src']);
-    gulp.watch(['src/**/*.scss'], ['sass']);
+    gulp.watch(['src/**/*.ts'], ['compile:app']).on('change', onFileChange);
+    gulp.watch(['src/**/*.js', 'src/**/*.html', 'src/**/*.css'], ['copy:src']).on('change', onFileChange);
+    gulp.watch(['src/**/*.scss'], ['sass']).on('change', onFileChange);
 });
+
+function onFileChange(event) {
+    var filePathFromSrc = path.relative(path.resolve('src'), event.path);
+
+    gutil.log('File', event.type + ':', gutil.colors.cyan(filePathFromSrc));
+
+    if (event.type === 'deleted') {
+
+        var destFilePath = path.resolve('dist', filePathFromSrc);
+        var extname = path.extname(destFilePath);
+
+        if (extname === '.scss') {
+            var fileName = path.basename(destFilePath, extname) + '.css';
+            destFilePath = path.join(path.dirname(destFilePath), fileName);
+        }
+
+        del.sync(destFilePath);
+    }
+}
